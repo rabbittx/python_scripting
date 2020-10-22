@@ -52,6 +52,8 @@ class KeyFinder:
 
 
 if __name__ == '__main__':
+    # KeyList = 'key word'
+    # KeyList = ['Key Word one ', 'key word two' ,' key word n ']
     KeyList = ['! INSERT YOUR KEYS HERE !']
     scraper = KeyFinder(KeyList)
     scraper.start()
