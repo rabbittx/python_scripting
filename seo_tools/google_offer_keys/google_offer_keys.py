@@ -1,95 +1,83 @@
-import requests ,csv
+import requests
+import csv
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
-
-
-def setup_logger():
-    """
-     Setup logger for the application.
-
-     Returns:
-         Logger object
-        
-    """
-    logger = logging.getLogger("GoogleSearchOfferKey")
-    logger.setLevel(logging.DEBUG)
-
-    # Create console handler and set level to DEBUG
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.DEBUG)
-
-    # Create formatter
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-
-    # Add formatter to console handler
-    console_handler.setFormatter(formatter)
-
-    # Add console handler to logger
-    logger.addHandler(console_handler)
-
-    return logger
-
+import argparse
 import logging
 
-
-
-
-class  GoogleSearch:
-    def __init__(self):
-        self.logger = setup_logger()
+class GoogleSearch:
+    def __init__(self, input_file, output_file):
+        self.input_file = input_file
+        self.output_file = output_file
+        self.session = requests.Session()
+        self.session.headers.update(self.make_user_agent())
         self.run()
 
     def make_user_agent(self):
         ua = UserAgent()
-        random_user_agent = ua.random
-        headers = {
-            'User-Agent': random_user_agent
-        }
-        self.logger.info('User Agent is ready')
-        return headers
-    
+        return {'User-Agent': ua.random}
+
     def get_keys(self):
-        with open('key-to-serach.txt',mode='r',encoding='utf-8-sig') as key_reader:
-            keys = key_reader.read()
-            self.logger('key read from file ')
-        return  [item for item in keys.split('\n') if item.strip()]
-    
-    def make_urls(self,keys):
-        return [f'https://www.google.com/search?q={url}' for url in keys]
+        with open(self.input_file, mode='r', encoding='utf-8-sig') as key_reader:
+            keys = [item.strip() for item in key_reader if item.strip()]
+        return keys
 
-    def  page_request(self,url,headers):
-       return requests.Session(url, headers=headers) if requests.Session(url, headers=headers).status_code == 200 else 'requests resposne error'
+    def make_urls(self, keys):
+        return [f'https://www.google.com/search?q={key}' for key in keys]
 
-    def  soupify(self,page):
-        try :
-            return BeautifulSoup(page.text,'html.parser')
-        except :
-            raise('[-] response is not 200 soupify fail')
-        
-    def  find_keys(self,soup):
-        offer_elements = soup.find_all('div',{'class' : 's75CSd u60jwe r2fjmd AB4Wff'})
+    def page_request(self, url):
+        try:
+            response = self.session.get(url)
+            response.raise_for_status()
+            return response
+        except requests.RequestException as e:
+            logging.error(f"Request failed: {e}")
+            return None
+
+    def soupify(self, page):
+        try:
+            return BeautifulSoup(page.content, 'html.parser')
+        except Exception as e:
+            logging.error(f"Failed to parse page: {e}")
+            return None
+
+    def find_keys(self, soup):
+        offer_elements = soup.find_all('div', {'class': 's75CSd u60jwe r2fjmd AB4Wff'})
         return [offer.text for offer in offer_elements]
-    
-    def save_to_csv(self, data, search_key, filename):
+
+    def save_to_csv(self, data, search_key):
         fieldnames = ['search key', 'result']
-        with open(filename, mode='a+', newline='', encoding='utf-8-sig') as file:
+        with open(self.output_file, mode='a+', newline='', encoding='utf-8-sig') as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames)
             if file.tell() == 0:
                 writer.writeheader()
             for result in data:
                 writer.writerow({'search key': search_key, 'result': result})
 
-
-
     def run(self):
         keys = self.get_keys()
+        self.logging.info('[+] keys extrect form file successfully . ')
         urls = self.make_urls(keys=keys)
-        for url in urls :
-            agent = self.make_user_agent()
-            response = self.page_request(url=url,headers=agent)
-            soup = self.soupify(response)
-            results = self.find_keys(soup)
-            self.save_to_csv(data=results,search_key=url.split('search?q=')[-1],filename='result.csv')
+        self.logging.info('[+] urls ready for all keys ready . ')
 
-if __name__ == '__main__' :
-    GoogleSearch()
+        for url, key in zip(urls, keys):
+            response = self.page_request(url)
+            self.logging.info(f'[+] resposne get successfully for key {key}. ')
+            if response:
+                soup = self.soupify(response)
+                self.logging.info(f'[+] soup get successfully for key {key}. ')
+                if soup:
+                    results = self.find_keys(soup)
+                    self.logging.info(f'[+] google offer keys get successfully for key {key}. ')
+                    self.save_to_csv(data=results, search_key=key)
+                    self.logging.info(f'[+] google offer key save  into the CSV file successfully for key {key} . \n')
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Google Search Results Scraper")
+    parser.add_argument('--input', help="Input file containing search keys", required=True)
+    parser.add_argument('--output', help="Output CSV file", required=True)
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO)
+    
+    GoogleSearch(input_file=args.input, output_file=args.output)
