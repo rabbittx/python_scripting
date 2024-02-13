@@ -1,4 +1,4 @@
-[read in persian](README.md)
+[read in persian](README.en.md)
 <div dir='ltr'>
 
 # GoogleSearch Scraper
